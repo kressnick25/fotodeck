@@ -13,6 +13,7 @@ import (
 )
 
 const publicBaseUrl = "/public/"
+const imgBaseUrl = "/img/"
 
 type Index struct {
 	Title  string
@@ -44,8 +45,11 @@ func main() {
 
 	log.Printf("Found %d photos in %s", len(files), homePath)
 
-	fileServer := http.FileServer(http.Dir(homePath))
-	http.Handle(publicBaseUrl, http.StripPrefix(publicBaseUrl, fileServer))
+	imgServer := http.FileServer(http.Dir(homePath))
+	http.Handle(imgBaseUrl, http.StripPrefix(imgBaseUrl, imgServer))
+
+	publicServer := http.FileServer(http.Dir("./public"))
+	http.Handle(publicBaseUrl, http.StripPrefix(publicBaseUrl, publicServer))
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		f := namesFromEntries(files)
@@ -60,7 +64,7 @@ func main() {
 			Title:  "My Album",
 			Photos: f,
 		}
-		t, _ := template.ParseFiles("index.html")
+		t, _ := template.ParseFiles("template/index.html")
 		t.Execute(w, &data)
 	})
 
