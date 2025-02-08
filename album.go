@@ -9,7 +9,11 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/fsnotify/fsnotify"
+	"github.com/samber/lo"
 )
 
 const publicBaseUrl = "/public/"
@@ -20,7 +24,21 @@ type Index struct {
 	Photos []string
 }
 
+type FileHolder struct {
+	Mu    sync.RWMutex
+	Files []os.DirEntry
+}
+
+// helper method to set files. Handles locking
+func (f *FileHolder) Set(files []os.DirEntry) {
+	f.Mu.Lock()
+	defer f.Mu.Unlock()
+
+	f.Files = files
+}
+
 func main() {
+	// --- Setup ---
 	if len(os.Args) != 3 {
 		fmt.Println("USAGE: ./album <PORT> <PHOTOS_PATH>")
 		os.Exit(1)
@@ -29,32 +47,81 @@ func main() {
 	homePath := os.Args[2]
 	validatePath(homePath)
 
-	files, err := os.ReadDir(homePath)
+	// --- Load files ---
+	fileEntries, fileLoadErr := loadHomePath(homePath)
+	if fileLoadErr != nil {
+		log.Fatal(fileLoadErr)
+	}
+	fileHolder := FileHolder{
+		Files: fileEntries,
+	}
+	log.Printf("Found %d photos in %s", len(fileHolder.Files), homePath)
+
+	// --- Watch for file changes ---
+	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		panic(err)
+		// TODO log err and disable file watching
+		log.Fatal(err)
 	}
+	defer watcher.Close()
 
-	for i, file := range files {
-		if !isFiletypeAllowed(file) {
-			log.Printf("warning: removing illegal file from index %s", file.Name())
-			// remove
-			files[i] = files[len(files)-1]
-			files = files[:len(files)-1]
+	// TODO make this time configurable
+	throttle := time.NewTicker(1 * time.Second)
+	defer throttle.Stop()
+
+	go func() {
+		var hasNewEvent bool
+
+		for {
+			select {
+			case event, ok := <-watcher.Events:
+				if !ok {
+					return
+				}
+				log.Println("watcherEvent: ", event)
+				hasNewEvent = true
+			case err, ok := <-watcher.Errors:
+				if !ok {
+					return
+				}
+				log.Println("watcherError: ", err)
+			case <-throttle.C:
+				if hasNewEvent {
+					fileEntries, fileLoadErr = loadHomePath(homePath)
+					if fileLoadErr != nil {
+						log.Printf("error: failed to reload homePath: %v\n", fileLoadErr)
+					}
+					fileHolder.Set(fileEntries)
+					hasNewEvent = false
+				}
+			}
 		}
+	}()
+
+	err = watcher.Add(homePath)
+	if err != nil {
+		// TODO log err and disable file watching
+		log.Fatal(err)
 	}
 
-	log.Printf("Found %d photos in %s", len(files), homePath)
-
+	// --- Static file servers ---
 	imgServer := http.FileServer(http.Dir(homePath))
 	http.Handle(imgBaseUrl, http.StripPrefix(imgBaseUrl, imgServer))
 
 	publicServer := http.FileServer(http.Dir("./public"))
 	http.Handle(publicBaseUrl, http.StripPrefix(publicBaseUrl, publicServer))
 
+	// --- Routes ---
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		f := namesFromEntries(files)
+		// FIXME is it bad to aquire a read lock all the time here?
+		// Maybe better to just have eventual consistency
+		// worst that could happen is the page loads with some dead image links, solved by refresh
+		fileHolder.Mu.RLock()
+		defer fileHolder.Mu.RUnlock()
+
+		f := namesFromEntries(fileHolder.Files)
 		rand.NewSource(time.Now().UnixNano())
-		// shuffe the files slice
+		// shuffle the files slice
 		for i := range f {
 			j := rand.Intn(i + 1)
 			f[i], f[j] = f[j], f[i]
@@ -68,6 +135,7 @@ func main() {
 		t.Execute(w, &data)
 	})
 
+	// --- Run ---
 	serverPort := fmt.Sprintf(":%s", port)
 	log.Printf("starting server on port %s", serverPort)
 	if err := http.ListenAndServe(serverPort, logRequest(http.DefaultServeMux)); err != nil {
@@ -75,7 +143,17 @@ func main() {
 	}
 }
 
-func isFiletypeAllowed(file os.DirEntry) bool {
+func loadHomePath(homePath string) ([]os.DirEntry, error) {
+	log.Println("Loading homePath from: ", homePath)
+	files, err := os.ReadDir(homePath)
+	if err != nil {
+		return nil, err
+	}
+	files = lo.Filter(files, isFiletypeAllowed)
+	return files, nil
+}
+
+func isFiletypeAllowed(file os.DirEntry, index int) bool {
 	whitelist := []string{"png", "jpeg", "jpg", "svg", "gif"}
 	f := file.Name()
 	t := f[strings.LastIndex(f, ".")+1:]
