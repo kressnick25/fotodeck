@@ -13,12 +13,18 @@ import (
 	"sync"
 	"time"
 
+	"album/internal/resize"
+
 	"github.com/fsnotify/fsnotify"
 	"github.com/samber/lo"
 )
 
 const publicBaseUrl = "/public/"
 const imgBaseUrl = "/img/"
+
+const optimisedMaxHeight = 2000
+const optimisedMaxWidth = 2000
+const optimsedExtension = ".optimised"
 
 type Index struct {
 	Title  string
@@ -81,7 +87,10 @@ func main() {
 					return
 				}
 				log.Println("watcherEvent: ", event)
-				hasNewEvent = true
+				// prevent circular update loop
+				if !strings.Contains(event.Name, optimsedExtension) {
+					hasNewEvent = true
+				}
 			case err, ok := <-watcher.Errors:
 				if !ok {
 					return
@@ -161,12 +170,13 @@ func loadHomePath(homePath string) (map[string]string, error) {
 		if err != nil {
 			return err
 		}
-		if f.Type().IsRegular() {
+		if f.Type().IsRegular() && !strings.Contains(f.Name(), optimsedExtension) {
 			existingPath, ok := fileMap[f.Name()]
 			if ok {
 				log.Printf("warning: duplicate filename entry found at %s. %s will be used\n", existingPath, path)
 			}
-			fileMap[f.Name()] = path
+			resizedPath := resizeImage(path)
+			fileMap[f.Name()] = resizedPath
 		}
 		return nil
 	})
@@ -177,6 +187,35 @@ func loadHomePath(homePath string) (map[string]string, error) {
 		return isFiletypeAllowed(key)
 	})
 	return fileMap, nil
+}
+
+func resizeImage(inputPath string) string {
+	image, err := resize.Open(inputPath)
+	if err != nil {
+		log.Println("Error opening image to resize: ", err)
+		return inputPath
+	}
+
+	opts := resize.Options{
+		MaxHeight: optimisedMaxHeight,
+		MaxWidth:  optimisedMaxWidth,
+	}
+	image = resize.Resize(image, opts)
+
+	// create optimised image path e.g "DC015334.optimised.jpg"
+	paths := strings.Split(inputPath, ".")
+	tmp := paths[len(paths)-1]
+	paths[len(paths)-1] = "optimised"
+	paths = append(paths, tmp)
+	outputPath := strings.Join(paths, ".")
+
+	err = resize.Save(image, outputPath)
+	if err != nil {
+		log.Println("Error saving image to resize: ", err)
+		return inputPath
+	}
+
+	return outputPath
 }
 
 func replaceWindowsPathSeparator(s string) string {
