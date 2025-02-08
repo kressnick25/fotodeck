@@ -45,6 +45,7 @@ func main() {
 	}
 	port := os.Args[1]
 	homePath := os.Args[2]
+	homePath = replaceWindowsPathSeparator(homePath)
 	validatePath(homePath)
 
 	// --- Load files ---
@@ -151,6 +152,10 @@ func loadHomePath(homePath string) ([]os.DirEntry, error) {
 	}
 	files = lo.Filter(files, isFiletypeAllowed)
 	return files, nil
+}
+
+func replaceWindowsPathSeparator(s string) string {
+	return strings.ReplaceAll(s, "\\", "/")
 }
 
 func isFiletypeAllowed(file os.DirEntry, index int) bool {
