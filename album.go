@@ -162,6 +162,10 @@ func loadHomePath(homePath string) (map[string]string, error) {
 			return err
 		}
 		if f.Type().IsRegular() {
+			existingPath, ok := fileMap[f.Name()]
+			if ok {
+				log.Printf("warning: duplicate filename entry found at %s. %s will be used\n", existingPath, path)
+			}
 			fileMap[f.Name()] = path
 		}
 		return nil
