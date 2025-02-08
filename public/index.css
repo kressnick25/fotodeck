@@ -26,9 +26,15 @@ img {
     cursor: pointer;
     transition: 0.3s;
 }
+#image-viewer img {
+    cursor: auto;
+}
 
 img:hover {
     opacity: 0.7;
+}
+#image-viewer img:hover {
+    opacity: 1;
 }
 
 /* The Modal (background) */
@@ -48,8 +54,10 @@ img:hover {
 .modal-content {
     margin: auto;
     display: block;
-    width: 80%;
-    max-width: 700px;
+    max-width: 80vw;
+    max-height: 80vh;
+    width: auto;
+    height: auto;
 }
 .modal-content {
     animation-name: zoom;
@@ -63,17 +71,44 @@ img:hover {
         transform: scale(1);
     }
 }
+
 #image-viewer .close {
     position: absolute;
     top: 15px;
     right: 35px;
     color: #f1f1f1;
-    font-size: 40px;
+    font-size: 60px;
     font-weight: bold;
     transition: 0.3s;
+    border: none;
+    background: none;
 }
+
+#image-viewer .next,
+#image-viewer .prev {
+    position: absolute;
+    color: #f1f1f1;
+    font-size: 60px;
+    font-weight: bold;
+    transition: 0.3s;
+    border: none;
+    background: none;
+}
+
+#image-viewer .next {
+    top: 25%;
+    right: 5%;
+}
+
+#image-viewer .prev {
+    top: 25%;
+    left: 5%;
+}
+
 #image-viewer .close:hover,
-#image-viewer .close:focus {
+#image-viewer .close:focus,
+#image-viewer .next:hover,
+#image-viewer .prev:hover {
     color: #bbb;
     text-decoration: none;
     cursor: pointer;

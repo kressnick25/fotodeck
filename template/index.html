@@ -2,37 +2,22 @@
 <html>
     <head>
         <link rel="stylesheet" href="/public/index.css" />
+        <script src="/public/index.js" defer></script>
     </head>
     <body>
         <h1>{{.Title}}</h1>
+        <p id="last"></p>
 
         <div class="gallery images">
-            {{range .Photos}}
-            <div class="image-item">
-                <img src="/img/{{.}}" />
-            </div>
+            {{range $i, $p := .Photos}}
+            <img id="photo-{{$i}}" class="image-item" src="/img/{{$p}}" />
             {{end}}
         </div>
         <div id="image-viewer">
-            <span class="close">&times;</span>
+            <button class="close">&times;</button>
+            <button class="prev">&lang;</button>
             <img class="modal-content" id="full-image" />
+            <button class="next">&rang;</button>
         </div>
-
-        <script>
-            document.querySelectorAll(".images img").forEach(function (e) {
-                e.addEventListener("click", function () {
-                    document.querySelector("#full-image").src = e.src;
-                    document.querySelector("#image-viewer").style.display =
-                        "block";
-                });
-            });
-
-            document
-                .querySelector("#image-viewer .close")
-                .addEventListener("click", function () {
-                    document.querySelector("#image-viewer").style.display =
-                        "none";
-                });
-        </script>
     </body>
 </html>
