@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -26,11 +27,11 @@ type Index struct {
 
 type FileHolder struct {
 	Mu    sync.RWMutex
-	Files []os.DirEntry
+	Files []string
 }
 
 // helper method to set files. Handles locking
-func (f *FileHolder) Set(files []os.DirEntry) {
+func (f *FileHolder) Set(files []string) {
 	f.Mu.Lock()
 	defer f.Mu.Unlock()
 
@@ -54,7 +55,7 @@ func main() {
 		log.Fatal(fileLoadErr)
 	}
 	fileHolder := FileHolder{
-		Files: fileEntries,
+		Files: lo.Keys(fileEntries),
 	}
 	log.Printf("Found %d photos in %s", len(fileHolder.Files), homePath)
 
@@ -92,7 +93,8 @@ func main() {
 					if fileLoadErr != nil {
 						log.Printf("error: failed to reload homePath: %v\n", fileLoadErr)
 					}
-					fileHolder.Set(fileEntries)
+					fileHolder.Set(lo.Keys(fileEntries))
+					log.Println("watcherEvent: homePath refresh completed")
 					hasNewEvent = false
 				}
 			}
@@ -106,13 +108,21 @@ func main() {
 	}
 
 	// --- Static file servers ---
-	imgServer := http.FileServer(http.Dir(homePath))
-	http.Handle(imgBaseUrl, http.StripPrefix(imgBaseUrl, imgServer))
-
 	publicServer := http.FileServer(http.Dir("./public"))
 	http.Handle(publicBaseUrl, http.StripPrefix(publicBaseUrl, publicServer))
 
 	// --- Routes ---
+	http.HandleFunc("/img/{id}", func(w http.ResponseWriter, r *http.Request) {
+		requestFile := r.PathValue("id")
+		absolutePath, ok := fileEntries[requestFile]
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		http.ServeFile(w, r, absolutePath)
+	})
+
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// FIXME is it bad to aquire a read lock all the time here?
 		// Maybe better to just have eventual consistency
@@ -120,7 +130,7 @@ func main() {
 		fileHolder.Mu.RLock()
 		defer fileHolder.Mu.RUnlock()
 
-		f := namesFromEntries(fileHolder.Files)
+		f := fileHolder.Files
 		rand.NewSource(time.Now().UnixNano())
 		// shuffle the files slice
 		for i := range f {
@@ -144,26 +154,36 @@ func main() {
 	}
 }
 
-func loadHomePath(homePath string) ([]os.DirEntry, error) {
+func loadHomePath(homePath string) (map[string]string, error) {
 	log.Println("Loading homePath from: ", homePath)
-	files, err := os.ReadDir(homePath)
+	fileMap := make(map[string]string)
+	err := filepath.WalkDir(homePath, func(path string, f os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if f.Type().IsRegular() {
+			fileMap[f.Name()] = path
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	files = lo.Filter(files, isFiletypeAllowed)
-	return files, nil
+	fileMap = lo.PickBy(fileMap, func(key string, value string) bool {
+		return isFiletypeAllowed(key)
+	})
+	return fileMap, nil
 }
 
 func replaceWindowsPathSeparator(s string) string {
 	return strings.ReplaceAll(s, "\\", "/")
 }
 
-func isFiletypeAllowed(file os.DirEntry, index int) bool {
+func isFiletypeAllowed(fileName string) bool {
 	whitelist := []string{"png", "jpeg", "jpg", "svg", "gif"}
-	f := file.Name()
-	t := f[strings.LastIndex(f, ".")+1:]
+	_type := fileName[strings.LastIndex(fileName, ".")+1:]
 
-	return stringInSlice(strings.ToLower(t), whitelist)
+	return stringInSlice(strings.ToLower(_type), whitelist)
 }
 
 func logRequest(handler http.Handler) http.Handler {
@@ -171,14 +191,6 @@ func logRequest(handler http.Handler) http.Handler {
 		log.Printf("%s %s %s\n", r.RemoteAddr, r.Method, r.URL)
 		handler.ServeHTTP(w, r)
 	})
-}
-
-func namesFromEntries(paths []os.DirEntry) []string {
-	res := make([]string, len(paths))
-	for i, path := range paths {
-		res[i] = path.Name()
-	}
-	return res
 }
 
 func stringInSlice(a string, list []string) bool {

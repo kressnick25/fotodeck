@@ -10,7 +10,13 @@
 
         <div class="gallery images">
             {{range $i, $p := .Photos}}
-            <img id="photo-{{$i}}" class="image-item" src="/img/{{$p}}" />
+            <img
+                id="photo-{{$i}}"
+                class="image-item"
+                src="/img/{{$p}}"
+                loading="lazy"
+                alt="Image not found"
+            />
             {{end}}
         </div>
         <div id="image-viewer">
