@@ -1,0 +1,7 @@
+- all config options in a TOML file
+- better UI
+- web UI pages w/ pagination
+- options for Image resizing/compression
+- GPU accellerated image compression??
+- async image compression
+- investigate faster image compression algorithms
