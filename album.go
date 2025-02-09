@@ -163,6 +163,9 @@ func main() {
 			return
 		}
 
+		// TODO debug log
+		fmt.Printf("requested: /img/preview/%s, served: %s\n", requestFile, entry.GetPreview())
+
 		http.ServeFile(w, r, entry.GetPreview())
 	})
 
@@ -173,6 +176,9 @@ func main() {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
+
+		// TODO debug log
+		fmt.Printf("requested: /img/%s, served: %s\n", requestFile, entry.GetFullSize())
 
 		http.ServeFile(w, r, entry.GetFullSize())
 	})

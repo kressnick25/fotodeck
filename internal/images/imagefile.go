@@ -34,7 +34,7 @@ func (i *ImageFile) GetPreview() string {
 	if i.previewPath == "" {
 		return i.originalPath
 	}
-	return i.originalPath
+	return i.previewPath
 }
 
 func (i *ImageFile) GetFullSize() string {
@@ -50,14 +50,6 @@ func (i *ImageFile) Name() string {
 
 func (i *ImageFile) IsOptimised() bool {
 	return i.optimisedPath != ""
-}
-
-func (i *ImageFile) SetOptimisedPath(path string) {
-	i.optimisedPath = path
-}
-
-func (i *ImageFile) SetPreviewPath(path string) {
-	i.previewPath = path
 }
 
 func (i *ImageFile) Cleanup() error {

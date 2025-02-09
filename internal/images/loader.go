@@ -115,10 +115,7 @@ func (l *Loader) OptimiseImages(images *map[string]ImageFile, maxOptimisedDimens
 
 func OptimiseImage(image ImageFile, maxOptimisedDimensions Dimensions, maxPreviewDimensions Dimensions) (ImageFile, error) {
 	optimisedPath := resizeImage(image.GetFullSize(), OptimisedExtension, maxOptimisedDimensions.Width, maxOptimisedDimensions.Height)
-	previewPath := resizeImage(image.GetFullSize(), PreviewExtension, maxOptimisedDimensions.Width, maxOptimisedDimensions.Height)
-
-	image.SetOptimisedPath(optimisedPath)
-	image.SetPreviewPath(previewPath)
+	previewPath := resizeImage(image.GetFullSize(), PreviewExtension, maxPreviewDimensions.Width, maxPreviewDimensions.Height)
 
 	return ImageFile{
 		name:          image.Name(),
