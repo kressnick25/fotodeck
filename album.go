@@ -38,12 +38,6 @@ type Index struct {
 	Photos []string
 }
 
-type FilePath struct {
-	Optimised string
-	Preview   string
-	Original  string
-}
-
 type FileHolder struct {
 	Mu    sync.RWMutex
 	Files []string
@@ -117,7 +111,7 @@ func main() {
 					return
 				}
 				// prevent circular update loop
-				if images.IsResizedImage(event.Name) {
+				if !images.IsResizedImage(event.Name) {
 					log.Println("watcherEvent: ", event)
 					hasNewEvent = true
 				}
