@@ -2,4 +2,5 @@ test/photos
 public/img/*
 album
 album.exe
+album-helper.exe
 **/.DS_Store

@@ -1,4 +1,4 @@
-package resize
+package images
 
 import (
 	"image"
@@ -11,7 +11,7 @@ type Dimensions struct {
 	Height int
 }
 
-type Options struct {
+type ResizeOptions struct {
 	MaxWidth  int
 	MaxHeight int
 }
@@ -21,7 +21,7 @@ func Open(inputPath string) (image.Image, error) {
 }
 
 // Resize an image according to supplied options
-func Resize(src image.Image, opts Options) image.Image {
+func Resize(src image.Image, opts ResizeOptions) image.Image {
 	// Get source dimensions, calculate new dimensions
 	srcWidth := src.Bounds().Dx()
 	srcHeight := src.Bounds().Dy()
