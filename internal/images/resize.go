@@ -29,8 +29,14 @@ func Resize(src image.Image, opts ResizeOptions) image.Image {
 	desired := Dimensions{Width: opts.MaxWidth, Height: opts.MaxHeight}
 	resized := calculateDimensions(original, desired)
 
+	// NearestNeighbor has best perf, but looks horrible at low res
+	filter := imaging.NearestNeighbor
+	if resized.Width < 1000 || resized.Height < 1000 {
+		filter = imaging.CatmullRom
+	}
+
 	// Resize the image
-	resizedImg := imaging.Resize(src, resized.Width, resized.Height, imaging.Lanczos)
+	resizedImg := imaging.Resize(src, resized.Width, resized.Height, filter)
 
 	return resizedImg
 }
