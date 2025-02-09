@@ -1,5 +1,5 @@
 test/photos
-public/img/*
+web/static/img/*
 album
 album.exe
 album-helper.exe

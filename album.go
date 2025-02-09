@@ -20,7 +20,7 @@ import (
 	"github.com/samber/lo"
 )
 
-const doResizeCleanup = true
+const doResizeCleanup = false
 
 const publicBaseUrl = "/public/"
 const imgBaseUrl = "/img/"
@@ -151,7 +151,7 @@ func main() {
 	}
 
 	// --- Static file servers ---
-	publicServer := http.FileServer(http.Dir("./public"))
+	publicServer := http.FileServer(http.Dir("./web/static"))
 	http.Handle(publicBaseUrl, http.StripPrefix(publicBaseUrl, publicServer))
 
 	// --- Routes ---
@@ -196,7 +196,7 @@ func main() {
 			Title:  "My Album",
 			Photos: f,
 		}
-		t, _ := template.ParseFiles("template/index.html")
+		t, _ := template.ParseFiles("web/template/index.html")
 		t.Execute(w, &data)
 	})
 
