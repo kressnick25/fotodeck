@@ -1,7 +1,7 @@
 package images
 
 import (
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -14,7 +14,7 @@ type Loader struct {
 }
 
 func (l *Loader) LoadOriginals(homePath string) (map[string]ImageFile, error) {
-	log.Println("Loading homePath from: ", homePath)
+	slog.Info("Loading original Images from homePath", "path", homePath, "class", "Loader")
 	fileMap := make(map[string]ImageFile)
 	err := filepath.WalkDir(homePath, func(path string, f os.DirEntry, err error) error {
 		if err != nil {
@@ -24,19 +24,17 @@ func (l *Loader) LoadOriginals(homePath string) (map[string]ImageFile, error) {
 			return nil
 		}
 		if strings.Contains(f.Name(), l.OptimisedExtension) || strings.Contains(f.Name(), l.PreviewExtension) {
-			// TODO debug log
-			log.Println("loader: skipping already optimised file: ", f.Name())
+			slog.Debug("skipping already optimised file", "path", f.Name(), "class", "Loader")
 			return nil
 		}
 		if !isFiletypeAllowed(f.Name()) {
-			// TODO debug log
-			log.Println("loader: skipping non-image file: ", f.Name())
+			slog.Debug("skipping non-image file", "path", f.Name(), "class", "Loader")
 			return nil
 		}
 
 		existingPath, ok := fileMap[f.Name()]
 		if ok {
-			log.Printf("loader: warning: duplicate filename entry found at %s. %s will be used\n", existingPath, path)
+			slog.Warn("duplicate filename entry found (existingPath). path will be used instead", "path", path, "existingPath", existingPath)
 		}
 
 		fileMap[f.Name()] = NewImageFile(f.Name(), path)
@@ -63,8 +61,7 @@ func worker(maxOD Dimensions, maxPd Dimensions, jobs <-chan struct {
 
 		optimised, err := OptimiseImage(image, maxOD, maxPd)
 		if err != nil {
-			// TODO error log
-			log.Println("optimiseImageError: ", err)
+			slog.Error("optimiseImageError", "error", err)
 		}
 
 		results <- struct {
@@ -128,15 +125,14 @@ func OptimiseImage(image ImageFile, maxOptimisedDimensions Dimensions, maxPrevie
 func resizeImage(inputPath string, extension string, maxWidth int, maxHeight int) string {
 	outputPath := getOptimisedFilePath(inputPath, extension)
 	if _, err := os.Stat(outputPath); err == nil {
-		// TODO debug log
-		log.Println("resizeImage: Resized image already exists, skipping: ", filepath.Clean(outputPath))
+		slog.Debug("Resized image already exists, skipping", "path", filepath.Clean(outputPath))
 		return outputPath
 	}
 
-	log.Printf("resizeImage: generating %s image: %s\n", extension, filepath.Clean(outputPath))
+	slog.Info("resizing image", "extension", extension, "path", filepath.Clean(outputPath))
 	image, err := Open(inputPath)
 	if err != nil {
-		log.Println("resizeImage: Error opening image to resize: ", err)
+		slog.Error("error opening image to resize", "error", err)
 		return inputPath
 	}
 
@@ -148,7 +144,7 @@ func resizeImage(inputPath string, extension string, maxWidth int, maxHeight int
 
 	err = Save(image, outputPath)
 	if err != nil {
-		log.Println("resizeImage: error saving image to resize: ", err)
+		slog.Error("error saving image to resize", "error", err)
 		return inputPath
 	}
 

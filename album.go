@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"html/template"
 	"log"
+	"log/slog"
 	"math/rand"
 	"net/http"
 	"os"
@@ -82,7 +83,7 @@ func main() {
 	}
 	fileLoadErr = loader.OptimiseImages(&fileEntries, maxOptimisedDimensions, maxPreviewDimensions)
 	if fileLoadErr != nil {
-		log.Printf("error: failed to optimise images: %v\n", fileLoadErr)
+		slog.Error("failed to optimimise images: ", "err", fileLoadErr)
 	}
 	fileHolder := FileHolder{
 		Files: lo.Keys(fileEntries),
@@ -92,10 +93,11 @@ func main() {
 	// --- Watch for file changes ---
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		// TODO log err and disable file watching
-		log.Fatal(err)
+		slog.Error("failed to initialise file watcher. File watch will be disabled", "error", err)
 	}
-	defer watcher.Close()
+	if watcher != nil {
+		defer watcher.Close()
+	}
 
 	// TODO make this time configurable
 	throttle := time.NewTicker(1 * time.Second)
@@ -112,26 +114,26 @@ func main() {
 				}
 				// prevent circular update loop
 				if !images.IsResizedImage(event.Name) {
-					log.Println("watcherEvent: ", event)
+					slog.Info("watcherEvent", "event", event)
 					hasNewEvent = true
 				}
 			case err, ok := <-watcher.Errors:
 				if !ok {
 					return
 				}
-				log.Println("watcherError: ", err)
+				slog.Error("watcherError: ", "err", err)
 			case <-throttle.C:
 				if hasNewEvent {
 					fileEntries, fileLoadErr = loader.LoadOriginals(homePath)
 					if fileLoadErr != nil {
-						log.Printf("error: failed to reload homePath: %v\n", fileLoadErr)
+						slog.Error("failed to reload homePath", "path", fileLoadErr)
 					}
 					fileLoadErr := loader.OptimiseImages(&fileEntries, maxOptimisedDimensions, maxPreviewDimensions)
 					if fileLoadErr != nil {
-						log.Printf("error: failed to re-optimise images: %v\n", fileLoadErr)
+						slog.Error("failed to re-optimise images", "error", fileLoadErr)
 					}
 					fileHolder.Set(lo.Keys(fileEntries))
-					log.Println("watcherEvent: homePath refresh completed")
+					slog.Info("watcherEvent: homePath refresh completed")
 					hasNewEvent = false
 				}
 			}
@@ -140,8 +142,7 @@ func main() {
 
 	err = watcher.Add(homePath)
 	if err != nil {
-		// TODO log err and disable file watching
-		log.Fatal(err)
+		slog.Error("failed to add home path to file watcher. File watch will be disabled", "error", err)
 	}
 
 	// --- Static file servers ---
@@ -157,8 +158,7 @@ func main() {
 			return
 		}
 
-		// TODO debug log
-		fmt.Printf("requested: /img/preview/%s, served: %s\n", requestFile, entry.GetPreview())
+		slog.Debug("", "requestFile", "/img/preview/"+requestFile, "responseFile", entry.GetPreview())
 
 		http.ServeFile(w, r, entry.GetPreview())
 	})
@@ -171,8 +171,7 @@ func main() {
 			return
 		}
 
-		// TODO debug log
-		fmt.Printf("requested: /img/%s, served: %s\n", requestFile, entry.GetFullSize())
+		slog.Debug("", "requestFile", "/img/"+requestFile, "responseFile", entry.GetFullSize())
 
 		http.ServeFile(w, r, entry.GetFullSize())
 	})
@@ -207,11 +206,11 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("starting server on port %s", serverPort)
+		slog.Info("starting server", "port", port)
 		if err := http.ListenAndServe(serverPort, logRequest(http.DefaultServeMux)); !errors.Is(err, http.ErrServerClosed) {
 			log.Fatal(err)
 		}
-		log.Println("Stopped serving new connections.")
+		slog.Info("Stopped serving new connections.")
 	}()
 
 	// --- Graceful shutdown ---
@@ -227,16 +226,16 @@ func main() {
 		for _, v := range fileEntries {
 			err := v.Cleanup()
 			if err != nil {
-				// TODO error log
-				log.Println("error: cleaning up file :", v.Name(), err)
+				slog.Error("error cleaning up file", "file", v.Name(), "error", err)
 			}
 		}
 	}
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		log.Fatalf("HTTP shutdown error: %v", err)
+		slog.Error("HTTP shutdown error", "error", err)
+		os.Exit(1)
 	}
-	log.Println("Graceful shutdown complete.")
+	slog.Info("Graceful shutdown complete.")
 }
 
 func replaceWindowsPathSeparator(s string) string {
@@ -245,7 +244,7 @@ func replaceWindowsPathSeparator(s string) string {
 
 func logRequest(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("%s %s %s\n", r.RemoteAddr, r.Method, r.URL)
+		slog.Info("HttpServer", "remoteAddr", r.RemoteAddr, "method", r.Method, "url", r.URL)
 		handler.ServeHTTP(w, r)
 	})
 }
@@ -253,11 +252,11 @@ func logRequest(handler http.Handler) http.Handler {
 func validatePath(homePath string) {
 	s, err := os.Stat(homePath)
 	if errors.Is(err, os.ErrNotExist) {
-		fmt.Printf("error: path does not exist: '%s'\n", homePath)
+		slog.Error("path does not exist", "path", homePath)
 		os.Exit(1)
 	}
 	if !s.IsDir() {
-		fmt.Printf("error: path is not a directory: '%s'\n", homePath)
+		slog.Error("path is not a directory", "path", homePath)
 		os.Exit(1)
 	}
 }

@@ -1,7 +1,7 @@
 package images
 
 import (
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -54,14 +54,14 @@ func (i *ImageFile) IsOptimised() bool {
 
 func (i *ImageFile) Cleanup() error {
 	if i.optimisedPath != "" {
-		log.Println("removing optimised file: ", filepath.Clean(i.optimisedPath))
+		slog.Info("removing optimised file", "path", filepath.Clean(i.optimisedPath))
 		err := os.Remove(i.optimisedPath)
 		if err != nil {
 			return err
 		}
 	}
 	if i.previewPath != "" {
-		log.Println("removing preview file: ", filepath.Clean(i.optimisedPath))
+		slog.Info("removing preview file", "path", filepath.Clean(i.optimisedPath))
 		err := os.Remove(i.previewPath)
 		if err != nil {
 			return err
