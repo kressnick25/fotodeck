@@ -3,7 +3,9 @@ let state = {
 };
 
 function showModal() {
-  document.querySelector("#full-image").src = state.currentPhoto.src;
+  let photoSrc = state.currentPhoto.src;
+  photoSrc = photoSrc.replaceAll("/preview", "");
+  document.querySelector("#full-image").src = photoSrc;
   document.querySelector("#image-viewer").style.display = "block";
   refreshArrows();
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"html/template"
@@ -8,9 +9,11 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"album/internal/resize"
@@ -24,11 +27,21 @@ const imgBaseUrl = "/img/"
 
 const optimisedMaxHeight = 2000
 const optimisedMaxWidth = 2000
-const optimsedExtension = ".optimised"
+const optimsedExtension = "optimised"
+
+const previewMaxHeight = 600
+const previewMaxWidth = 600
+const previewExtension = "preview"
 
 type Index struct {
 	Title  string
 	Photos []string
+}
+
+type FilePath struct {
+	Optimised string
+	Preview   string
+	Original  string
 }
 
 type FileHolder struct {
@@ -86,9 +99,9 @@ func main() {
 				if !ok {
 					return
 				}
-				log.Println("watcherEvent: ", event)
 				// prevent circular update loop
-				if !strings.Contains(event.Name, optimsedExtension) {
+				if !strings.Contains(event.Name, optimsedExtension) && !strings.Contains(event.Name, previewExtension) {
+					log.Println("watcherEvent: ", event)
 					hasNewEvent = true
 				}
 			case err, ok := <-watcher.Errors:
@@ -121,15 +134,33 @@ func main() {
 	http.Handle(publicBaseUrl, http.StripPrefix(publicBaseUrl, publicServer))
 
 	// --- Routes ---
-	http.HandleFunc("/img/{id}", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/img/preview/{id}", func(w http.ResponseWriter, r *http.Request) {
 		requestFile := r.PathValue("id")
-		absolutePath, ok := fileEntries[requestFile]
+		entry, ok := fileEntries[requestFile]
 		if !ok {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
 
-		http.ServeFile(w, r, absolutePath)
+		http.ServeFile(w, r, entry.Preview)
+	})
+
+	http.HandleFunc("/img/{id}", func(w http.ResponseWriter, r *http.Request) {
+		requestFile := r.PathValue("id")
+		entry, ok := fileEntries[requestFile]
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		var path string
+		if entry.Optimised != "" {
+			path = entry.Optimised
+		} else {
+			path = entry.Original
+		}
+
+		http.ServeFile(w, r, path)
 	})
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -157,39 +188,102 @@ func main() {
 
 	// --- Run ---
 	serverPort := fmt.Sprintf(":%s", port)
-	log.Printf("starting server on port %s", serverPort)
-	if err := http.ListenAndServe(serverPort, logRequest(http.DefaultServeMux)); err != nil {
-		log.Fatal(err)
+	server := &http.Server{
+		Addr: serverPort,
 	}
+
+	go func() {
+		log.Printf("starting server on port %s", serverPort)
+		if err := http.ListenAndServe(serverPort, logRequest(http.DefaultServeMux)); !errors.Is(err, http.ErrServerClosed) {
+			log.Fatal(err)
+		}
+		log.Println("Stopped serving new connections.")
+	}()
+
+	// --- Graceful shutdown ---
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	<-sigChan
+
+	shutdownCtx, shutdownRelease := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownRelease()
+
+	cleanupResized(homePath)
+
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Fatalf("HTTP shutdown error: %v", err)
+	}
+	log.Println("Graceful shutdown complete.")
 }
 
-func loadHomePath(homePath string) (map[string]string, error) {
+func loadHomePath(homePath string) (map[string]FilePath, error) {
 	log.Println("Loading homePath from: ", homePath)
-	fileMap := make(map[string]string)
+	fileMap := make(map[string]FilePath)
 	err := filepath.WalkDir(homePath, func(path string, f os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if f.Type().IsRegular() && !strings.Contains(f.Name(), optimsedExtension) {
-			existingPath, ok := fileMap[f.Name()]
-			if ok {
-				log.Printf("warning: duplicate filename entry found at %s. %s will be used\n", existingPath, path)
-			}
-			resizedPath := resizeImage(path)
-			fileMap[f.Name()] = resizedPath
+		if !f.Type().IsRegular() {
+			return nil
 		}
+		if strings.Contains(f.Name(), optimsedExtension) || strings.Contains(f.Name(), previewExtension) {
+			// TODO debug log
+			log.Println("skipping already optimised file: ", f.Name())
+			return nil
+		}
+		if !isFiletypeAllowed(f.Name()) {
+			// TODO debug log
+			log.Println("skipping non-image file: ", f.Name())
+			return nil
+		}
+
+		existingPath, ok := fileMap[f.Name()]
+		if ok {
+			log.Printf("warning: duplicate filename entry found at %s. %s will be used\n", existingPath, path)
+		}
+
+		optimisedPath := resizeImage(path, optimsedExtension, optimisedMaxWidth, optimisedMaxHeight)
+		previewPath := resizeImage(path, previewExtension, previewMaxWidth, previewMaxHeight)
+		fileMap[f.Name()] = FilePath{
+			Optimised: optimisedPath,
+			Preview:   previewPath,
+			Original:  path,
+		}
+
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	fileMap = lo.PickBy(fileMap, func(key string, value string) bool {
-		return isFiletypeAllowed(key)
-	})
+
 	return fileMap, nil
 }
 
-func resizeImage(inputPath string) string {
+func cleanupResized(homePath string) error {
+	err := filepath.WalkDir(homePath, func(path string, f os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if strings.Contains(f.Name(), optimsedExtension) || strings.Contains(f.Name(), previewExtension) {
+			// TODO debug log
+			log.Println("removing optimised file: ", path)
+			os.Remove(path)
+		}
+		return nil
+	})
+	return err
+}
+
+func resizeImage(inputPath string, extension string, maxWidth int, maxHeight int) string {
+	outputPath := getOptimisedFilePath(inputPath, extension)
+	// FIXME optimise: this os.Stat call seems to be very slow, at least on Windows.
+	if _, err := os.Stat("/path/to/whatever"); err == nil {
+		// TODO debug log
+		log.Println("Resized image already exists, skipping: ", outputPath)
+		return outputPath
+	}
+
+	log.Printf("Generating %s image: %s\n", extension, outputPath)
 	image, err := resize.Open(inputPath)
 	if err != nil {
 		log.Println("Error opening image to resize: ", err)
@@ -197,17 +291,10 @@ func resizeImage(inputPath string) string {
 	}
 
 	opts := resize.Options{
-		MaxHeight: optimisedMaxHeight,
-		MaxWidth:  optimisedMaxWidth,
+		MaxWidth:  maxWidth,
+		MaxHeight: maxHeight,
 	}
 	image = resize.Resize(image, opts)
-
-	// create optimised image path e.g "DC015334.optimised.jpg"
-	paths := strings.Split(inputPath, ".")
-	tmp := paths[len(paths)-1]
-	paths[len(paths)-1] = "optimised"
-	paths = append(paths, tmp)
-	outputPath := strings.Join(paths, ".")
 
 	err = resize.Save(image, outputPath)
 	if err != nil {
@@ -216,6 +303,22 @@ func resizeImage(inputPath string) string {
 	}
 
 	return outputPath
+}
+
+func getOptimisedFilePath(inputPath string, extension string) string {
+	paths := strings.Split(inputPath, ".")
+
+	if paths[len(paths)-2] == optimsedExtension {
+		// already an optimised file
+		return inputPath
+	}
+
+	// transform 'image.jpg' -> 'image.optimised.jpg'
+	tmp := paths[len(paths)-1]
+	paths[len(paths)-1] = extension
+	paths = append(paths, tmp)
+
+	return strings.Join(paths, ".")
 }
 
 func replaceWindowsPathSeparator(s string) string {
