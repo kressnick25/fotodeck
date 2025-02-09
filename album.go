@@ -22,6 +22,8 @@ import (
 	"github.com/samber/lo"
 )
 
+const doResizeCleanup = false
+
 const publicBaseUrl = "/public/"
 const imgBaseUrl = "/img/"
 
@@ -208,7 +210,9 @@ func main() {
 	shutdownCtx, shutdownRelease := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownRelease()
 
-	cleanupResized(homePath)
+	if doResizeCleanup {
+		cleanupResized(homePath)
+	}
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		log.Fatalf("HTTP shutdown error: %v", err)
@@ -228,12 +232,12 @@ func loadHomePath(homePath string) (map[string]FilePath, error) {
 		}
 		if strings.Contains(f.Name(), optimsedExtension) || strings.Contains(f.Name(), previewExtension) {
 			// TODO debug log
-			log.Println("skipping already optimised file: ", f.Name())
+			log.Println("import: skipping already optimised file: ", f.Name())
 			return nil
 		}
 		if !isFiletypeAllowed(f.Name()) {
 			// TODO debug log
-			log.Println("skipping non-image file: ", f.Name())
+			log.Println("import: skipping non-image file: ", f.Name())
 			return nil
 		}
 
@@ -276,17 +280,16 @@ func cleanupResized(homePath string) error {
 
 func resizeImage(inputPath string, extension string, maxWidth int, maxHeight int) string {
 	outputPath := getOptimisedFilePath(inputPath, extension)
-	// FIXME optimise: this os.Stat call seems to be very slow, at least on Windows.
-	if _, err := os.Stat("/path/to/whatever"); err == nil {
+	if _, err := os.Stat(outputPath); err == nil {
 		// TODO debug log
-		log.Println("Resized image already exists, skipping: ", outputPath)
+		log.Println("resizeImage: Resized image already exists, skipping: ", outputPath)
 		return outputPath
 	}
 
-	log.Printf("Generating %s image: %s\n", extension, outputPath)
+	log.Printf("resizeImage: generating %s image: %s\n", extension, outputPath)
 	image, err := resize.Open(inputPath)
 	if err != nil {
-		log.Println("Error opening image to resize: ", err)
+		log.Println("resizeImage: Error opening image to resize: ", err)
 		return inputPath
 	}
 
@@ -298,7 +301,7 @@ func resizeImage(inputPath string, extension string, maxWidth int, maxHeight int
 
 	err = resize.Save(image, outputPath)
 	if err != nil {
-		log.Println("Error saving image to resize: ", err)
+		log.Println("resizeImage: error saving image to resize: ", err)
 		return inputPath
 	}
 
