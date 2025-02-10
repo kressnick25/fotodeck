@@ -201,7 +201,12 @@ func main() {
 			return
 		}
 
-		t.Execute(w, &data)
+		err = t.Execute(w, &data)
+		if err != nil {
+			slog.Error("Failed to execute template", "template", templateFile, "error", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 	})
 
 	// --- Run ---
@@ -215,7 +220,7 @@ func main() {
 
 	go func() {
 		slog.Info("starting server", "port", port)
-		if err := http.ListenAndServe(serverPort, logRequest(http.DefaultServeMux)); !errors.Is(err, http.ErrServerClosed) {
+		if err := http.ListenAndServe(serverPort, logRequest(http.DefaultServeMux)); !errors.Is(err, http.ErrServerClosed) { // #nosec G114 -- headers are set above
 			log.Fatal(err)
 		}
 		slog.Info("Stopped serving new connections.")
