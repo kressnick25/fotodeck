@@ -23,9 +23,6 @@ import (
 
 const doResizeCleanup = false
 
-const publicBaseUrl = "/public/"
-const imgBaseUrl = "/img/"
-
 const optimisedMaxHeight = 2000
 const optimisedMaxWidth = 2000
 const optimisedExtension = "optimised"
@@ -147,7 +144,7 @@ func main() {
 
 	// --- Static file servers ---
 	publicServer := http.FileServer(http.Dir("./web/static"))
-	http.Handle(publicBaseUrl, http.StripPrefix(publicBaseUrl, publicServer))
+	http.Handle("/public/", http.StripPrefix("/public/", publicServer))
 
 	// --- Routes ---
 	http.HandleFunc("/img/preview/{id}", func(w http.ResponseWriter, r *http.Request) {
@@ -187,7 +184,7 @@ func main() {
 		rand.NewSource(time.Now().UnixNano())
 		// shuffle the files slice
 		for i := range f {
-			j := rand.Intn(i + 1)
+			j := rand.Intn(i + 1) // #nosec G404 -- secure random not required
 			f[i], f[j] = f[j], f[i]
 		}
 
@@ -195,14 +192,25 @@ func main() {
 			Title:  "My Album",
 			Photos: f,
 		}
-		t, _ := template.ParseFiles("web/template/index.html")
+
+		templateFile := "web/template/index.html"
+		t, err := template.ParseFiles(templateFile)
+		if err != nil {
+			slog.Error("Failed to parse template", "template", templateFile, "error", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
 		t.Execute(w, &data)
 	})
 
 	// --- Run ---
 	serverPort := fmt.Sprintf(":%s", port)
 	server := &http.Server{
-		Addr: serverPort,
+		Addr:              serverPort,
+		ReadTimeout:       5 * time.Second,
+		ReadHeaderTimeout: 3 * time.Second,
+		WriteTimeout:      10 * time.Second,
 	}
 
 	go func() {
@@ -222,7 +230,10 @@ func main() {
 	defer shutdownRelease()
 
 	if doResizeCleanup {
-		watcher.Close()
+		err = watcher.Close()
+		if err != nil {
+			slog.Error("Failed to close watcher", "error", err)
+		}
 		for _, v := range fileEntries {
 			err := v.Cleanup()
 			if err != nil {

@@ -23,7 +23,10 @@ func main() {
 			}
 
 			fmt.Println("Removing file: ", path)
-			os.Remove(path)
+			err = os.Remove(path)
+			if err != nil {
+				fmt.Println("Failed to remove file: ", path, err)
+			}
 
 			return nil
 		})
