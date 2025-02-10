@@ -18,6 +18,9 @@ func main() {
 	if command == "cleanup" {
 		fmt.Println("Cleaning up image previews for homePath: ", homePath)
 		err := filepath.WalkDir(homePath, func(path string, f os.DirEntry, err error) error {
+			if err != nil {
+				fmt.Println("Walkdir error: ", path, err)
+			}
 			if !images.IsResizedImage(path) {
 				return nil
 			}

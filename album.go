@@ -220,7 +220,8 @@ func main() {
 
 	go func() {
 		slog.Info("starting server", "port", port)
-		if err := http.ListenAndServe(serverPort, logRequest(http.DefaultServeMux)); !errors.Is(err, http.ErrServerClosed) { // #nosec G114 -- headers are set above
+		// #nosec G114 -- headers are set above
+		if err := http.ListenAndServe(serverPort, logRequest(http.DefaultServeMux)); !errors.Is(err, http.ErrServerClosed) {
 			log.Fatal(err)
 		}
 		slog.Info("Stopped serving new connections.")
