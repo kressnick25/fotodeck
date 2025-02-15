@@ -41,28 +41,45 @@ jobs:
         with:
           args: ./...
 
-  # build-docker:
-  #   needs: [build-and-test, security-check]
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
+  build-docker:
+    needs: [build-and-test, security-check]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_NAME: album
+    steps:
+      - uses: actions/checkout@v4
 
-  #     - name: Set up Docker Buildx
-  #       uses: docker/setup-buildx-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-  #     - name: Build Docker image
-  #       run: |
-  #         docker build -t album:${{ github.sha }} .
-  #         docker tag album:${{ github.sha }} album:latest
+      - name: Login to container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-  # Uncomment and modify if you want to push to a registry
-  # - name: Login to Docker Hub
-  #   uses: docker/login-action@v2
-  #   with:
-  #     username: ${{ secrets.DOCKERHUB_USERNAME }}
-  #     password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Extract metadata (tags, labels) for Docker
+        uses: docker/metadata-action@v5
+        with: ${{ env.REGISTRY }}
 
-  # - name: Push Docker image
-  #   run: |
-  #     docker push album:${{ github.sha }}
-  #     docker push album:latest
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Generate artifact attestation
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME}}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
