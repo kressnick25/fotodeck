@@ -6,6 +6,7 @@ on:
 
 jobs:
   build-and-test:
+    name: Build & Test
     runs-on: ubuntu-latest
 
     steps:
@@ -29,7 +30,7 @@ jobs:
         run: go test -bench=. -benchmem ./test/...
 
   security-check:
-    name: Security Check
+    name: Security check
     runs-on: ubuntu-latest
     env:
       GOFLAGS: "-buildvcs=false"
@@ -42,6 +43,7 @@ jobs:
           args: ./...
 
   build-docker:
+    name: Build image & publish
     needs: [build-and-test, security-check]
     runs-on: ubuntu-latest
     permissions:
@@ -51,7 +53,7 @@ jobs:
       id-token: write
     env:
       REGISTRY: ghcr.io
-      IMAGE_NAME: album
+      IMAGE_NAME: kressnick25/album
     steps:
       - uses: actions/checkout@v4
 
@@ -65,17 +67,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (tags, labels) for Docker
-        uses: docker/metadata-action@v5
-        with: ${{ env.REGISTRY }}
-
       - name: Build and push image
+        id: push
         uses: docker/build-push-action@v6
         with:
+          file: build/package/Dockerfile
           context: .
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
       - name: Generate artifact attestation
         uses: actions/attest-build-provenance@v2
