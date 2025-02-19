@@ -4,15 +4,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strings"
 )
-
-const OptimisedExtension = "optimised"
-const PreviewExtension = "preview"
-
-func IsResizedImage(path string) bool {
-	return strings.Contains(path, "."+OptimisedExtension+".") || strings.Contains(path, "."+PreviewExtension+".")
-}
 
 type ImageFile struct {
 	originalPath  string

@@ -1,0 +1,15 @@
+homePath = '/photos'
+
+[imageResizing]
+enabled = true
+async = false
+resizedWidth = 2000
+resizedHeight = 2000
+previewWidth = 600
+previewHeight = 600
+cleanupOnShutdown = false
+resizedFileExtension = 'opt'
+previewFileExtension = 'prev'
+
+[server]
+listenAddr = ':8080'
