@@ -1,10 +1,10 @@
 package main
 
 import (
-	"album/internal/images"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 func main() {
@@ -21,7 +21,7 @@ func main() {
 			if err != nil {
 				fmt.Println("Walkdir error: ", path, err)
 			}
-			if !images.IsResizedImage(path) {
+			if !strings.Contains(f.Name(), ".opt.") && !strings.Contains(f.Name(), ".prev.") {
 				return nil
 			}
 
