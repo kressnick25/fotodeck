@@ -77,6 +77,9 @@ func main() {
 	validatePath(configPath)
 
 	configFileBytes, err := os.ReadFile(configPath)
+	if err != nil {
+		panic(err)
+	}
 	configFileString := string(configFileBytes)
 
 	var conf config
