@@ -88,7 +88,7 @@ func main() {
 
 	conf.HomePath = replaceWindowsPathSeparator(conf.HomePath)
 	conf.HomePath = filepath.Clean(conf.HomePath)
-	validatePath(conf.HomePath)
+	validateHomePath(conf.HomePath)
 
 	// --- Load files ---
 	maxPreviewDimensions := images.Dimensions{
