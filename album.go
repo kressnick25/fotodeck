@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -72,6 +73,7 @@ func main() {
 	}
 	configPath := os.Args[1]
 	configPath = replaceWindowsPathSeparator(configPath)
+	filepath.Clean(configPath)
 	validatePath(configPath)
 
 	configFileBytes, err := os.ReadFile(configPath)
@@ -85,6 +87,7 @@ func main() {
 	slog.Info("Loaded config file", "path", configPath)
 
 	conf.HomePath = replaceWindowsPathSeparator(conf.HomePath)
+	conf.HomePath = filepath.Clean(conf.HomePath)
 	validatePath(conf.HomePath)
 
 	// --- Load files ---
