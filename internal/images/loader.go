@@ -1,6 +1,7 @@
 package images
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -14,6 +15,11 @@ type Loader struct {
 }
 
 func (l *Loader) LoadOriginals(homePath string) (map[string]ImageFile, error) {
+	if len(l.OptimisedExtension) == 0 || len(l.PreviewExtension) == 0 {
+		slog.Error("Optimised or Preview extension is empty", "optExt", l.OptimisedExtension, "prvExt", l.PreviewExtension)
+		return nil, fmt.Errorf("Optimised or Preview extension is empty optimised='%s', preview='%s'", l.OptimisedExtension, l.PreviewExtension)
+	}
+
 	slog.Info("Loading original Images from homePath", "path", homePath, "class", "Loader")
 	fileMap := make(map[string]ImageFile)
 	err := filepath.WalkDir(homePath, func(path string, f os.DirEntry, err error) error {
@@ -24,7 +30,7 @@ func (l *Loader) LoadOriginals(homePath string) (map[string]ImageFile, error) {
 			return nil
 		}
 		if strings.Contains(f.Name(), l.OptimisedExtension) || strings.Contains(f.Name(), l.PreviewExtension) {
-			slog.Debug("skipping already optimised file", "path", f.Name(), "class", "Loader")
+			slog.Debug("skipping already optimised file", "path", f.Name(), "class", "Loader", "optExt", l.OptimisedExtension, "prvExt", l.PreviewExtension)
 			return nil
 		}
 		if !isFiletypeAllowed(f.Name()) {
@@ -48,7 +54,11 @@ func (l *Loader) LoadOriginals(homePath string) (map[string]ImageFile, error) {
 	return fileMap, nil
 }
 
-func worker(maxOD Dimensions, maxPd Dimensions, jobs <-chan struct {
+func (l *Loader) IsResizedImage(path string) bool {
+	return strings.Contains(path, "."+l.OptimisedExtension+".") || strings.Contains(path, "."+l.PreviewExtension+".")
+}
+
+func (l *Loader) worker(maxOD Dimensions, maxPd Dimensions, optExt string, prvExt string, jobs <-chan struct {
 	string
 	ImageFile
 }, results chan<- struct {
@@ -59,7 +69,7 @@ func worker(maxOD Dimensions, maxPd Dimensions, jobs <-chan struct {
 		key := item.string
 		image := item.ImageFile
 
-		optimised, err := OptimiseImage(image, maxOD, maxPd)
+		optimised, err := l.OptimiseImage(image, maxOD, maxPd, optExt, prvExt)
 		if err != nil {
 			slog.Error("optimiseImageError", "error", err)
 		}
@@ -87,7 +97,7 @@ func (l *Loader) OptimiseImages(images *map[string]ImageFile, maxOptimisedDimens
 	}, imageCount)
 
 	for i := 0; i < numCpus; i++ {
-		go worker(maxOptimisedDimensions, maxPreviewDimensions, jobs, results)
+		go l.worker(maxOptimisedDimensions, maxPreviewDimensions, l.OptimisedExtension, l.PreviewExtension, jobs, results)
 	}
 
 	for k, v := range *images {
@@ -110,9 +120,9 @@ func (l *Loader) OptimiseImages(images *map[string]ImageFile, maxOptimisedDimens
 	return nil
 }
 
-func OptimiseImage(image ImageFile, maxOptimisedDimensions Dimensions, maxPreviewDimensions Dimensions) (ImageFile, error) {
-	optimisedPath := resizeImage(image.GetFullSize(), OptimisedExtension, maxOptimisedDimensions.Width, maxOptimisedDimensions.Height)
-	previewPath := resizeImage(image.GetFullSize(), PreviewExtension, maxPreviewDimensions.Width, maxPreviewDimensions.Height)
+func (l *Loader) OptimiseImage(image ImageFile, maxOptimisedDimensions Dimensions, maxPreviewDimensions Dimensions, optimisedExt string, previewExt string) (ImageFile, error) {
+	optimisedPath := l.resizeImage(image.GetFullSize(), optimisedExt, maxOptimisedDimensions.Width, maxOptimisedDimensions.Height)
+	previewPath := l.resizeImage(image.GetFullSize(), previewExt, maxPreviewDimensions.Width, maxPreviewDimensions.Height)
 
 	return ImageFile{
 		name:          image.Name(),
@@ -122,8 +132,8 @@ func OptimiseImage(image ImageFile, maxOptimisedDimensions Dimensions, maxPrevie
 	}, nil
 }
 
-func resizeImage(inputPath string, extension string, maxWidth int, maxHeight int) string {
-	outputPath := getOptimisedFilePath(inputPath, extension)
+func (l *Loader) resizeImage(inputPath string, extension string, maxWidth int, maxHeight int) string {
+	outputPath := l.getOptimisedFilePath(inputPath, extension)
 	if _, err := os.Stat(outputPath); err == nil {
 		slog.Debug("Resized image already exists, skipping", "path", filepath.Clean(outputPath))
 		return outputPath
@@ -151,10 +161,10 @@ func resizeImage(inputPath string, extension string, maxWidth int, maxHeight int
 	return outputPath
 }
 
-func getOptimisedFilePath(inputPath string, extension string) string {
+func (l *Loader) getOptimisedFilePath(inputPath string, extension string) string {
 	paths := strings.Split(inputPath, ".")
 
-	if IsResizedImage(inputPath) {
+	if l.IsResizedImage(inputPath) {
 		// already an optimised file
 		return inputPath
 	}

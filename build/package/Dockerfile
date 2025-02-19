@@ -13,6 +13,7 @@ WORKDIR /app
 
 # Copy from builder stage
 COPY --from=builder /app/album .
+COPY --from=builder /app/config.toml .
 COPY --from=builder /app/web ./web
 
 RUN mkdir /photos
@@ -24,4 +25,4 @@ EXPOSE 8080
 
 ENTRYPOINT ["/app/album"]
 
-CMD ["8080", "/photos"]
+CMD ["config.toml"]
