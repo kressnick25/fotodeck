@@ -25,7 +25,7 @@ import (
 
 type (
 	config struct {
-		HomePath      string
+		Home          home
 		Server        server
 		ImageResizing imageResizing
 	}
@@ -44,6 +44,11 @@ type (
 
 	server struct {
 		ListenAddr string
+	}
+
+	home struct {
+		Path               string
+		MinRefreshInterval int
 	}
 )
 
@@ -89,9 +94,9 @@ func main() {
 	}
 	slog.Info("Loaded config file", "path", configPath)
 
-	conf.HomePath = replaceWindowsPathSeparator(conf.HomePath)
-	conf.HomePath = filepath.Clean(conf.HomePath)
-	validateHomePath(conf.HomePath)
+	conf.Home.Path = replaceWindowsPathSeparator(conf.Home.Path)
+	conf.Home.Path = filepath.Clean(conf.Home.Path)
+	validateHomePath(conf.Home.Path)
 
 	// --- Load files ---
 	maxPreviewDimensions := images.Dimensions{
@@ -107,7 +112,7 @@ func main() {
 		PreviewExtension:   conf.ImageResizing.PreviewFileExtension,
 	}
 	var fileEntries map[string]images.ImageFile
-	fileEntries, fileLoadErr := loader.LoadOriginals(conf.HomePath)
+	fileEntries, fileLoadErr := loader.LoadOriginals(conf.Home.Path)
 	if fileLoadErr != nil {
 		log.Fatal(fileLoadErr)
 	}
@@ -118,7 +123,7 @@ func main() {
 	fileHolder := FileHolder{
 		Files: lo.Keys(fileEntries),
 	}
-	log.Printf("Found %d photos in %s", len(fileHolder.Files), conf.HomePath)
+	log.Printf("Found %d photos in %s", len(fileHolder.Files), conf.Home.Path)
 
 	// --- Watch for file changes ---
 	watcher, err := fsnotify.NewWatcher()
@@ -129,8 +134,7 @@ func main() {
 		defer watcher.Close()
 	}
 
-	// TODO make this time configurable
-	throttle := time.NewTicker(1 * time.Second)
+	throttle := time.NewTicker(time.Duration(conf.Home.MinRefreshInterval) * time.Second)
 	defer throttle.Stop()
 
 	go func() {
@@ -154,7 +158,7 @@ func main() {
 				slog.Error("watcherError: ", "err", err)
 			case <-throttle.C:
 				if hasNewEvent {
-					fileEntries, fileLoadErr = loader.LoadOriginals(conf.HomePath)
+					fileEntries, fileLoadErr = loader.LoadOriginals(conf.Home.Path)
 					if fileLoadErr != nil {
 						slog.Error("failed to reload homePath", "path", fileLoadErr)
 					}
@@ -170,7 +174,7 @@ func main() {
 		}
 	}()
 
-	err = watcher.Add(conf.HomePath)
+	err = watcher.Add(conf.Home.Path)
 	if err != nil {
 		slog.Error("failed to add home path to file watcher. File watch will be disabled", "error", err)
 	}
