@@ -2,10 +2,8 @@ package images_test
 
 import (
 	"album/internal/images"
-	"io"
+	"album/internal/util"
 	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,7 +19,7 @@ const numJpgFiles = 2
 func setupTest(t *testing.T) (images.Loader, func(t *testing.T)) {
 	os.RemoveAll(homePath)
 	os.Mkdir(homePath, os.ModeDir)
-	copyDirectory(dataPath, homePath)
+	util.CopyDirectory(dataPath, homePath)
 
 	defaultSize := images.Dimensions{
 		Width:  maxSize,
@@ -44,7 +42,7 @@ func TestLoaderOriginals(t *testing.T) {
 	// GIVEN
 
 	// WHEN
-	files := must(loader.LoadOriginals(homePath))
+	files := util.Must(loader.LoadOriginals(homePath))
 
 	// THEN
 	if len(files) != numJpgFiles {
@@ -57,9 +55,9 @@ func TestLoaderOptimise(t *testing.T) {
 	defer teardown(t)
 
 	// GIVEN
-	files := must(loader.LoadOriginals(homePath))
+	files := util.Must(loader.LoadOriginals(homePath))
 	assert.Equal(t, len(files), numJpgFiles, "Loaded files should equal the number on disk")
-	numJpgs := must(countFilesByExtension(homePath, "jpg"))
+	numJpgs := util.Must(util.CountFilesByExtension(homePath, "jpg"))
 	assert.Equal(t, numJpgs, numJpgFiles, "There should be the same number of files on disk as loaded")
 
 	// WHEN
@@ -70,8 +68,8 @@ func TestLoaderOptimise(t *testing.T) {
 
 	// THEN
 	assert.Equal(t, len(files), numJpgFiles, "Loaded files should equal the number on disk")
-	assert.Equal(t, must(countFilesByExtension(homePath, optExt+".jpg")), numJpgFiles, "Optimised image files should be created")
-	assert.Equal(t, must(countFilesByExtension(homePath, prevExt+".jpg")), numJpgFiles, "Preview image files should be created")
+	assert.Equal(t, util.Must(util.CountFilesByExtension(homePath, optExt+".jpg")), numJpgFiles, "Optimised image files should be created")
+	assert.Equal(t, util.Must(util.CountFilesByExtension(homePath, prevExt+".jpg")), numJpgFiles, "Preview image files should be created")
 }
 
 func TestLoaderReload(t *testing.T) {
@@ -79,23 +77,23 @@ func TestLoaderReload(t *testing.T) {
 	defer teardown(t)
 
 	// GIVEN
-	files := must(loader.LoadOriginals(homePath))
+	files := util.Must(loader.LoadOriginals(homePath))
 	err := loader.OptimiseImages(&files)
 	if err != nil {
 		t.Error(err)
 	}
 
 	assert.Equal(t, len(files), numJpgFiles, "Loaded files should equal the number on disk")
-	assert.Equal(t, must(countFilesByExtension(homePath, optExt+".jpg")), numJpgFiles, "Optimised image files should be created")
-	assert.Equal(t, must(countFilesByExtension(homePath, prevExt+".jpg")), numJpgFiles, "Preview image files should be created")
+	assert.Equal(t, util.Must(util.CountFilesByExtension(homePath, optExt+".jpg")), numJpgFiles, "Optimised image files should be created")
+	assert.Equal(t, util.Must(util.CountFilesByExtension(homePath, prevExt+".jpg")), numJpgFiles, "Preview image files should be created")
 
 	// WHEN
-	files2 := must(loader.Reload(homePath))
+	files2 := util.Must(loader.Reload(homePath))
 
 	// THEN
 	assert.Equal(t, len(files), len(files2), "Loaded files should be the same after reload")
-	assert.Equal(t, must(countFilesByExtension(homePath, optExt+".jpg")), numJpgFiles, "Optimised image files should be created")
-	assert.Equal(t, must(countFilesByExtension(homePath, prevExt+".jpg")), numJpgFiles, "Preview image files should be created")
+	assert.Equal(t, util.Must(util.CountFilesByExtension(homePath, optExt+".jpg")), numJpgFiles, "Optimised image files should be created")
+	assert.Equal(t, util.Must(util.CountFilesByExtension(homePath, prevExt+".jpg")), numJpgFiles, "Preview image files should be created")
 }
 
 func TestImageCleanup(t *testing.T) {
@@ -103,15 +101,15 @@ func TestImageCleanup(t *testing.T) {
 	defer teardown(t)
 
 	// GIVEN
-	files := must(loader.LoadOriginals(homePath))
+	files := util.Must(loader.LoadOriginals(homePath))
 	err := loader.OptimiseImages(&files)
 	if err != nil {
 		t.Error(err)
 	}
 
 	assert.Equal(t, len(files), numJpgFiles, "Loaded files should equal the number on disk")
-	assert.Equal(t, must(countFilesByExtension(homePath, optExt+".jpg")), numJpgFiles, "Optimised image files should be created")
-	assert.Equal(t, must(countFilesByExtension(homePath, prevExt+".jpg")), numJpgFiles, "Preview image files should be created")
+	assert.Equal(t, util.Must(util.CountFilesByExtension(homePath, optExt+".jpg")), numJpgFiles, "Optimised image files should be created")
+	assert.Equal(t, util.Must(util.CountFilesByExtension(homePath, prevExt+".jpg")), numJpgFiles, "Preview image files should be created")
 
 	// WHEN
 	for _, v := range files {
@@ -122,85 +120,6 @@ func TestImageCleanup(t *testing.T) {
 	}
 
 	// THEN
-	assert.Equal(t, must(countFilesByExtension(homePath, optExt+".jpg")), 0, "Optimised image files should be created")
-	assert.Equal(t, must(countFilesByExtension(homePath, prevExt+".jpg")), 0, "Preview image files should be created")
-}
-
-func must[T any](obj T, err error) T {
-	if err != nil {
-		panic(err)
-	}
-	return obj
-}
-
-// does not handle recursion
-func countFilesByExtension(dir, ext string) (int, error) {
-	files, err := os.ReadDir(dir)
-	if err != nil {
-		return 0, err
-	}
-
-	count := 0
-	for _, file := range files {
-		if !file.IsDir() && strings.HasSuffix(file.Name(), ext) {
-			count++
-		}
-	}
-	return count, nil
-}
-
-func copyDirectory(src string, dst string) error {
-	err := os.MkdirAll(dst, os.ModePerm)
-	if err != nil {
-		return err
-	}
-
-	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		// Get the relative path
-		relPath, err := filepath.Rel(src, path)
-		if err != nil {
-			return err
-		}
-
-		if info.IsDir() {
-			// Create sub-directories
-			return os.MkdirAll(filepath.Join(dst, relPath), info.Mode())
-		}
-
-		// Copy files
-		return copyFile(path, filepath.Join(dst, relPath))
-	})
-}
-
-func copyFile(src, dst string) error {
-	sourceFile, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer sourceFile.Close()
-
-	// Create the destination file
-	destFile, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer destFile.Close()
-
-	// Copy the contents
-	_, err = io.Copy(destFile, sourceFile)
-	if err != nil {
-		return err
-	}
-
-	// Copy the mode/permissions
-	sourceInfo, err := os.Stat(src)
-	if err != nil {
-		return err
-	}
-
-	return os.Chmod(dst, sourceInfo.Mode())
+	assert.Equal(t, util.Must(util.CountFilesByExtension(homePath, optExt+".jpg")), 0, "Optimised image files should be created")
+	assert.Equal(t, util.Must(util.CountFilesByExtension(homePath, prevExt+".jpg")), 0, "Preview image files should be created")
 }
