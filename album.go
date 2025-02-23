@@ -1,6 +1,7 @@
 package main
 
 import (
+	"album/internal/application"
 	"album/internal/handler"
 	"album/internal/images"
 
@@ -12,43 +13,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
 
-	"github.com/BurntSushi/toml"
 	"github.com/fsnotify/fsnotify"
 	"github.com/samber/lo"
-)
-
-type (
-	config struct {
-		Home          home
-		Server        server
-		ImageResizing imageResizing
-	}
-
-	imageResizing struct {
-		Async                bool
-		CleanupOnShutdown    bool
-		Enabled              bool
-		PreviewWidth         int
-		PreviewHeight        int
-		ResizedWidth         int
-		ResizedHeight        int
-		ResizedFileExtension string
-		PreviewFileExtension string
-	}
-
-	server struct {
-		ListenAddr string
-	}
-
-	home struct {
-		Path               string
-		MinRefreshInterval int
-	}
 )
 
 func main() {
@@ -57,49 +27,35 @@ func main() {
 		fmt.Println("USAGE: ./album <CONFIG PATH>")
 		os.Exit(1)
 	}
+
 	configPath := os.Args[1]
-	configPath = replaceWindowsPathSeparator(configPath)
-	filepath.Clean(configPath)
-	validatePath(configPath)
-
-	configFileBytes, err := os.ReadFile(configPath)
+	conf, err := application.LoadConfig(configPath)
 	if err != nil {
+		slog.Error("failed to load application config", "path", configPath, "error", err.Error())
 		panic(err)
 	}
-	configFileString := string(configFileBytes)
-
-	var conf config
-	_, err = toml.Decode(configFileString, &conf)
-	if err != nil {
-		panic(err)
-	}
-	slog.Info("Loaded config file", "path", configPath)
-
-	conf.Home.Path = replaceWindowsPathSeparator(conf.Home.Path)
-	conf.Home.Path = filepath.Clean(conf.Home.Path)
-	validateHomePath(conf.Home.Path)
 
 	// --- Load files ---
-	maxPreviewDimensions := images.Dimensions{
-		Width:  conf.ImageResizing.PreviewWidth,
-		Height: conf.ImageResizing.PreviewHeight,
-	}
-	maxOptimisedDimensions := images.Dimensions{
-		Width:  conf.ImageResizing.ResizedWidth,
-		Height: conf.ImageResizing.ResizedHeight,
-	}
 	loader := images.Loader{
 		OptimisedExtension: conf.ImageResizing.ResizedFileExtension,
 		PreviewExtension:   conf.ImageResizing.PreviewFileExtension,
+		MaxOptimisedDimensions: images.Dimensions{
+			Width:  conf.ImageResizing.ResizedWidth,
+			Height: conf.ImageResizing.ResizedHeight,
+		},
+		MaxPreviewDimensions: images.Dimensions{
+			Width:  conf.ImageResizing.PreviewWidth,
+			Height: conf.ImageResizing.PreviewHeight,
+		},
 	}
 	var fileEntries map[string]images.ImageFile
 	fileEntries, fileLoadErr := loader.LoadOriginals(conf.Home.Path)
 	if fileLoadErr != nil {
 		log.Fatal(fileLoadErr)
 	}
-	fileLoadErr = loader.OptimiseImages(&fileEntries, maxOptimisedDimensions, maxPreviewDimensions)
+	fileLoadErr = loader.OptimiseImages(&fileEntries)
 	if fileLoadErr != nil {
-		slog.Error("failed to optimimise images: ", "err", fileLoadErr)
+		slog.Error("failed to optimimise images: ", "error", fileLoadErr)
 	}
 	fileHolder := handler.FileHolder{
 		Files: lo.Keys(fileEntries),
@@ -118,42 +74,7 @@ func main() {
 	throttle := time.NewTicker(time.Duration(conf.Home.MinRefreshInterval) * time.Second)
 	defer throttle.Stop()
 
-	go func() {
-		var hasNewEvent bool
-
-		for {
-			select {
-			case event, ok := <-watcher.Events:
-				if !ok {
-					return
-				}
-				// prevent circular update loop
-				if !loader.IsResizedImage(event.Name) {
-					slog.Info("watcherEvent", "event", event)
-					hasNewEvent = true
-				}
-			case err, ok := <-watcher.Errors:
-				if !ok {
-					return
-				}
-				slog.Error("watcherError: ", "err", err)
-			case <-throttle.C:
-				if hasNewEvent {
-					fileEntries, fileLoadErr = loader.LoadOriginals(conf.Home.Path)
-					if fileLoadErr != nil {
-						slog.Error("failed to reload homePath", "path", fileLoadErr)
-					}
-					fileLoadErr := loader.OptimiseImages(&fileEntries, maxOptimisedDimensions, maxPreviewDimensions)
-					if fileLoadErr != nil {
-						slog.Error("failed to re-optimise images", "error", fileLoadErr)
-					}
-					fileHolder.Set(lo.Keys(fileEntries))
-					slog.Info("watcherEvent: homePath refresh completed")
-					hasNewEvent = false
-				}
-			}
-		}
-	}()
+	go fileWatchFn(watcher, &loader, &fileHolder, throttle, conf.Home.Path)
 
 	err = watcher.Add(conf.Home.Path)
 	if err != nil {
@@ -235,22 +156,35 @@ func logRequest(handler http.Handler) http.Handler {
 	})
 }
 
-func validateHomePath(homePath string) {
-	s, err := os.Stat(homePath)
-	if errors.Is(err, os.ErrNotExist) {
-		slog.Error("path does not exist", "path", homePath)
-		os.Exit(1)
-	}
-	if !s.IsDir() {
-		slog.Error("path is not a directory", "path", homePath)
-		os.Exit(1)
-	}
-}
+func fileWatchFn(watcher *fsnotify.Watcher, loader *images.Loader, fileHolder *handler.FileHolder, throttle *time.Ticker, homePath string) {
+	var hasNewEvent bool
 
-func validatePath(homePath string) {
-	_, err := os.Stat(homePath)
-	if errors.Is(err, os.ErrNotExist) {
-		slog.Error("path does not exist", "path", homePath)
-		os.Exit(1)
+	for {
+		select {
+		case event, ok := <-watcher.Events:
+			if !ok {
+				return
+			}
+			// prevent circular update loop
+			if !loader.IsResizedImage(event.Name) {
+				slog.Info("watcherEvent", "event", event)
+				hasNewEvent = true
+			}
+		case err, ok := <-watcher.Errors:
+			if !ok {
+				return
+			}
+			slog.Error("watcherError: ", "err", err)
+		case <-throttle.C:
+			if hasNewEvent {
+				fileEntries, fileLoadErr := loader.Reload(homePath)
+				if fileLoadErr != nil {
+					slog.Error("failed to reload homePath", "path", fileLoadErr)
+				}
+				fileHolder.Set(lo.Keys(fileEntries))
+				slog.Info("watcherEvent: homePath refresh completed")
+				hasNewEvent = false
+			}
+		}
 	}
 }

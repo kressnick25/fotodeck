@@ -10,8 +10,22 @@ import (
 )
 
 type Loader struct {
-	OptimisedExtension string
-	PreviewExtension   string
+	OptimisedExtension     string
+	PreviewExtension       string
+	MaxOptimisedDimensions Dimensions
+	MaxPreviewDimensions   Dimensions
+}
+
+func (l *Loader) Reload(homePath string) (map[string]ImageFile, error) {
+	fileEntries, err := l.LoadOriginals(homePath)
+	if err != nil {
+		return nil, err
+	}
+	err = l.OptimiseImages(&fileEntries)
+	if err != nil {
+		return nil, err
+	}
+	return fileEntries, nil
 }
 
 func (l *Loader) LoadOriginals(homePath string) (map[string]ImageFile, error) {
@@ -58,7 +72,7 @@ func (l *Loader) IsResizedImage(path string) bool {
 	return strings.Contains(path, "."+l.OptimisedExtension+".") || strings.Contains(path, "."+l.PreviewExtension+".")
 }
 
-func (l *Loader) worker(maxOD Dimensions, maxPd Dimensions, optExt string, prvExt string, jobs <-chan struct {
+func (l *Loader) worker(optExt string, prvExt string, jobs <-chan struct {
 	string
 	ImageFile
 }, results chan<- struct {
@@ -69,7 +83,7 @@ func (l *Loader) worker(maxOD Dimensions, maxPd Dimensions, optExt string, prvEx
 		key := item.string
 		image := item.ImageFile
 
-		optimised, err := l.OptimiseImage(image, maxOD, maxPd, optExt, prvExt)
+		optimised, err := l.OptimiseImage(image, optExt, prvExt)
 		if err != nil {
 			slog.Error("optimiseImageError", "error", err)
 		}
@@ -81,7 +95,7 @@ func (l *Loader) worker(maxOD Dimensions, maxPd Dimensions, optExt string, prvEx
 	}
 }
 
-func (l *Loader) OptimiseImages(images *map[string]ImageFile, maxOptimisedDimensions Dimensions, maxPreviewDimensions Dimensions) error {
+func (l *Loader) OptimiseImages(images *map[string]ImageFile) error {
 	numCpus := runtime.NumCPU()
 	imageCount := len(*images)
 
@@ -97,7 +111,7 @@ func (l *Loader) OptimiseImages(images *map[string]ImageFile, maxOptimisedDimens
 	}, imageCount)
 
 	for i := 0; i < numCpus; i++ {
-		go l.worker(maxOptimisedDimensions, maxPreviewDimensions, l.OptimisedExtension, l.PreviewExtension, jobs, results)
+		go l.worker(l.OptimisedExtension, l.PreviewExtension, jobs, results)
 	}
 
 	for k, v := range *images {
@@ -120,9 +134,9 @@ func (l *Loader) OptimiseImages(images *map[string]ImageFile, maxOptimisedDimens
 	return nil
 }
 
-func (l *Loader) OptimiseImage(image ImageFile, maxOptimisedDimensions Dimensions, maxPreviewDimensions Dimensions, optimisedExt string, previewExt string) (ImageFile, error) {
-	optimisedPath := l.resizeImage(image.GetFullSize(), optimisedExt, maxOptimisedDimensions.Width, maxOptimisedDimensions.Height)
-	previewPath := l.resizeImage(image.GetFullSize(), previewExt, maxPreviewDimensions.Width, maxPreviewDimensions.Height)
+func (l *Loader) OptimiseImage(image ImageFile, optimisedExt string, previewExt string) (ImageFile, error) {
+	optimisedPath := l.resizeImage(image.GetFullSize(), optimisedExt, l.MaxOptimisedDimensions)
+	previewPath := l.resizeImage(image.GetFullSize(), previewExt, l.MaxPreviewDimensions)
 
 	return ImageFile{
 		name:          image.Name(),
@@ -132,7 +146,7 @@ func (l *Loader) OptimiseImage(image ImageFile, maxOptimisedDimensions Dimension
 	}, nil
 }
 
-func (l *Loader) resizeImage(inputPath string, extension string, maxWidth int, maxHeight int) string {
+func (l *Loader) resizeImage(inputPath string, extension string, maxDimensions Dimensions) string {
 	outputPath := l.getOptimisedFilePath(inputPath, extension)
 	if _, err := os.Stat(outputPath); err == nil {
 		slog.Debug("Resized image already exists, skipping", "path", filepath.Clean(outputPath))
@@ -146,11 +160,7 @@ func (l *Loader) resizeImage(inputPath string, extension string, maxWidth int, m
 		return inputPath
 	}
 
-	opts := ResizeOptions{
-		MaxWidth:  maxWidth,
-		MaxHeight: maxHeight,
-	}
-	image = Resize(image, opts)
+	image = Resize(image, maxDimensions)
 
 	err = Save(image, outputPath)
 	if err != nil {
