@@ -1,7 +1,6 @@
 package images
 
 import (
-	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -29,11 +28,6 @@ func (l *Loader) Reload(homePath string) (map[string]ImageFile, error) {
 }
 
 func (l *Loader) LoadOriginals(homePath string) (map[string]ImageFile, error) {
-	if len(l.OptimisedExtension) == 0 || len(l.PreviewExtension) == 0 {
-		slog.Error("Optimised or Preview extension is empty", "optExt", l.OptimisedExtension, "prvExt", l.PreviewExtension)
-		return nil, fmt.Errorf("Optimised or Preview extension is empty optimised='%s', preview='%s'", l.OptimisedExtension, l.PreviewExtension)
-	}
-
 	slog.Info("Loading original Images from homePath", "path", homePath, "class", "Loader")
 	fileMap := make(map[string]ImageFile)
 	err := filepath.WalkDir(homePath, func(path string, f os.DirEntry, err error) error {
