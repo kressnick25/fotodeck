@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -148,10 +147,6 @@ func main() {
 		os.Exit(1)
 	}
 	slog.Info("Graceful shutdown complete.")
-}
-
-func replaceWindowsPathSeparator(s string) string {
-	return strings.ReplaceAll(s, "\\", "/")
 }
 
 func logRequest(handler http.Handler) http.Handler {
