@@ -64,15 +64,19 @@ func LoadConfig(path string) (Config, error) {
 	}
 	slog.Info("Loaded config file", "path", configPath)
 
-	homePath := filepath.Clean(conf.Home.Path)
-	s, err := os.Stat(conf.Home.Path)
-	if errors.Is(err, os.ErrNotExist) {
-		return Config{}, fmt.Errorf("home path does not exist: %s", homePath)
-	}
-	if !s.IsDir() {
-		return Config{}, fmt.Errorf("home path is not a directory: %s", homePath)
-	}
-	conf.Home.Path = homePath
+	conf.Home.Path = filepath.Clean(conf.Home.Path)
 
 	return conf, nil
+}
+
+func ValidateHomePath(conf Config) error {
+	homePath := conf.Home.Path
+	s, err := os.Stat(conf.Home.Path)
+	if errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("home path does not exist: %s", homePath)
+	}
+	if !s.IsDir() {
+		return fmt.Errorf("home path is not a directory: %s", homePath)
+	}
+	return nil
 }

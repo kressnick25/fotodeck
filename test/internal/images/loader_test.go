@@ -61,6 +61,7 @@ func TestLoaderOptimise(t *testing.T) {
 	assert.Equal(t, numJpgs, numJpgFiles, "There should be the same number of files on disk as loaded")
 	for _, file := range files {
 		assert.False(t, file.IsOptimised(), "Files should not be optimised before Optimise func")
+		assert.Equal(t, file.GetPreview(), file.GetFullSize(), "Preview should return full size path before optimisation")
 	}
 
 	// WHEN
@@ -76,6 +77,7 @@ func TestLoaderOptimise(t *testing.T) {
 
 	for _, file := range files {
 		assert.True(t, file.IsOptimised(), "Files should be optimised")
+		assert.NotEqual(t, file.GetPreview(), file.GetFullSize(), "Preview should not return fullSize path after optimisation")
 	}
 }
 

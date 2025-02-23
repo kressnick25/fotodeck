@@ -32,7 +32,12 @@ func main() {
 	conf, err := application.LoadConfig(configPath)
 	if err != nil {
 		slog.Error("failed to load application config", "path", configPath, "error", err.Error())
-		panic(err)
+		os.Exit(1)
+	}
+	err = application.ValidateHomePath(conf)
+	if err != nil {
+		slog.Error("failed to validate home path", "path", conf.Home.Path, "error", err.Error())
+		os.Exit(1)
 	}
 
 	// --- Load files ---
