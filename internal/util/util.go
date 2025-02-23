@@ -31,7 +31,7 @@ func CountFilesByExtension(dir, ext string) (int, error) {
 }
 
 func CopyDirectory(src string, dst string) error {
-	err := os.MkdirAll(dst, os.ModePerm)
+	err := os.MkdirAll(dst, os.ModeDir)
 	if err != nil {
 		return err
 	}

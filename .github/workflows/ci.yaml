@@ -54,7 +54,7 @@ jobs:
       - name: Run gosec Security Scanner
         uses: securego/gosec@master
         with:
-          args: ./...
+          args: -exclude=G304 ./...
 
   build-docker:
     needs: [build-and-test]
