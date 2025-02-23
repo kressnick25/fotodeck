@@ -59,6 +59,9 @@ func TestLoaderOptimise(t *testing.T) {
 	assert.Equal(t, len(files), numJpgFiles, "Loaded files should equal the number on disk")
 	numJpgs := util.Must(util.CountFilesByExtension(homePath, "jpg"))
 	assert.Equal(t, numJpgs, numJpgFiles, "There should be the same number of files on disk as loaded")
+	for _, file := range files {
+		assert.False(t, file.IsOptimised(), "Files should not be optimised before Optimise func")
+	}
 
 	// WHEN
 	err := loader.OptimiseImages(&files)
@@ -70,6 +73,10 @@ func TestLoaderOptimise(t *testing.T) {
 	assert.Equal(t, len(files), numJpgFiles, "Loaded files should equal the number on disk")
 	assert.Equal(t, util.Must(util.CountFilesByExtension(homePath, optExt+".jpg")), numJpgFiles, "Optimised image files should be created")
 	assert.Equal(t, util.Must(util.CountFilesByExtension(homePath, prevExt+".jpg")), numJpgFiles, "Preview image files should be created")
+
+	for _, file := range files {
+		assert.True(t, file.IsOptimised(), "Files should be optimised")
+	}
 }
 
 func TestLoaderReload(t *testing.T) {
