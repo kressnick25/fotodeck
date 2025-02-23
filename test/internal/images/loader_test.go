@@ -17,9 +17,18 @@ const dataPath = "../../data"
 const numJpgFiles = 2
 
 func setupTest(t *testing.T) (images.Loader, func(t *testing.T)) {
-	os.RemoveAll(homePath)
-	os.Mkdir(homePath, os.ModeDir)
-	util.CopyDirectory(dataPath, homePath)
+	err := os.RemoveAll(homePath)
+	if err != nil {
+		t.Error(err)
+	}
+	err = os.Mkdir(homePath, os.ModeDir)
+	if err != nil {
+		t.Error(err)
+	}
+	err = util.CopyDirectory(dataPath, homePath)
+	if err != nil {
+		t.Error(err)
+	}
 
 	defaultSize := images.Dimensions{
 		Width:  maxSize,
