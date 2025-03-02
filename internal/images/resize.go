@@ -11,23 +11,17 @@ type Dimensions struct {
 	Height int
 }
 
-type ResizeOptions struct {
-	MaxWidth  int
-	MaxHeight int
-}
-
 func Open(inputPath string) (image.Image, error) {
 	return imaging.Open(inputPath)
 }
 
 // Resize an image according to supplied options
-func Resize(src image.Image, opts ResizeOptions) image.Image {
+func Resize(src image.Image, maxDimensions Dimensions) image.Image {
 	// Get source dimensions, calculate new dimensions
 	srcWidth := src.Bounds().Dx()
 	srcHeight := src.Bounds().Dy()
 	original := Dimensions{Width: srcWidth, Height: srcHeight}
-	desired := Dimensions{Width: opts.MaxWidth, Height: opts.MaxHeight}
-	resized := calculateDimensions(original, desired)
+	resized := calculateDimensions(original, maxDimensions)
 
 	// NearestNeighbor has best perf, but looks horrible at low res
 	filter := imaging.NearestNeighbor

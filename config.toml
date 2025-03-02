@@ -1,4 +1,6 @@
-homePath = '/photos'
+[home]
+path = '/photos'
+minRefreshInterval = 10
 
 [imageResizing]
 enabled = true
