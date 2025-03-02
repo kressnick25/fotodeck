@@ -21,7 +21,7 @@ func setupTest(t *testing.T) (images.Loader, func(t *testing.T)) {
 	if err != nil {
 		t.Error(err)
 	}
-	err = os.Mkdir(homePath, os.ModeDir)
+	err = os.Mkdir(homePath, os.FileMode(0755))
 	if err != nil {
 		t.Error(err)
 	}
