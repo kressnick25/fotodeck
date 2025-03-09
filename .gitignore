@@ -5,4 +5,6 @@ album.exe
 album-helper.exe
 **/.DS_Store
 cover.out
+coverage.html
+test-coverage.html
 test/workdir/

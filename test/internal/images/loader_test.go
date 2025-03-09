@@ -12,16 +12,14 @@ import (
 const maxSize = 200
 const optExt = "opt"
 const prevExt = "prev"
-const homePath = "../../workdir"
+const homePath = "./workdir"
 const dataPath = "../../data"
 const numJpgFiles = 2
 
 func setupTest(t *testing.T) (images.Loader, func(t *testing.T)) {
-	err := os.RemoveAll(homePath)
-	if err != nil {
-		t.Error(err)
-	}
-	err = os.Mkdir(homePath, os.FileMode(0755))
+	os.RemoveAll(homePath)
+
+	err := os.Mkdir(homePath, os.FileMode(0755))
 	if err != nil {
 		t.Error(err)
 	}
@@ -41,7 +39,9 @@ func setupTest(t *testing.T) (images.Loader, func(t *testing.T)) {
 		MaxPreviewDimensions:   defaultSize,
 	}
 
-	return loader, func(t *testing.T) {}
+	return loader, func(t *testing.T) {
+		os.RemoveAll(homePath)
+	}
 }
 
 func TestLoaderOriginals(t *testing.T) {
