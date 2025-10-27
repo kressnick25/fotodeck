@@ -23,7 +23,7 @@ import (
 func main() {
 	// --- Setup ---
 	if len(os.Args) != 2 {
-		fmt.Println("USAGE: ./album <CONFIG PATH>")
+		fmt.Println("USAGE: ./fotodeck <CONFIG PATH>")
 		os.Exit(1)
 	}
 

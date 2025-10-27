@@ -3,6 +3,9 @@ web/static/img/*
 album
 album.exe
 album-helper.exe
+fotodeck
+fotodeck.exe
+fotodeck-helper.exe
 **/.DS_Store
 cover.out
 coverage.html
