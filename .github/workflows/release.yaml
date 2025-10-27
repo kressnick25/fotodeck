@@ -53,7 +53,7 @@ jobs:
       id-token: write
     env:
       REGISTRY: ghcr.io
-      IMAGE_NAME: kressnick25/album
+      IMAGE_NAME: kressnick25/fotodeck
     steps:
       - uses: actions/checkout@v4
 

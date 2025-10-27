@@ -9,7 +9,7 @@ import (
 
 func main() {
 	if len(os.Args) != 3 {
-		fmt.Println("USAGE: ./album-helper <COMMAND> <HOME PATH>\nValid commands: [cleanup,]")
+		fmt.Println("USAGE: ./fotodeck-helper <COMMAND> <HOME PATH>\nValid commands: [cleanup,]")
 		os.Exit(1)
 	}
 	command := os.Args[1]

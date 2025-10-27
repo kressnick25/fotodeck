@@ -1,9 +1,9 @@
 package main
 
 import (
-	"album/internal/application"
-	"album/internal/handler"
-	"album/internal/images"
+	"fotodeck/internal/application"
+	"fotodeck/internal/handler"
+	"fotodeck/internal/images"
 
 	"context"
 	"errors"
@@ -23,7 +23,7 @@ import (
 func main() {
 	// --- Setup ---
 	if len(os.Args) != 2 {
-		fmt.Println("USAGE: ./album <CONFIG PATH>")
+		fmt.Println("USAGE: ./fotodeck <CONFIG PATH>")
 		os.Exit(1)
 	}
 

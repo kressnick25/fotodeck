@@ -76,5 +76,5 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -f build/package/Dockerfile -t album:${{ github.sha }} .
-          docker tag album:${{ github.sha }} album:latest
+          docker build -f build/package/Dockerfile -t fotodeck:${{ github.sha }} .
+          docker tag fotodeck:${{ github.sha }} fotodeck:latest

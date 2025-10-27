@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"album/internal/images"
+	"fotodeck/internal/images"
 	"log/slog"
 	"net/http"
 )

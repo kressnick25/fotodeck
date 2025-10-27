@@ -1,4 +1,4 @@
-module album
+module fotodeck
 
 go 1.23.4
 
