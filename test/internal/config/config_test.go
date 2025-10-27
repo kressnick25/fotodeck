@@ -1,8 +1,8 @@
 package config_test
 
 import (
-	"album/internal/application"
-	"album/internal/util"
+	"fotodeck/internal/application"
+	"fotodeck/internal/util"
 	"os"
 	"testing"
 

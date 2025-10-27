@@ -1,9 +1,9 @@
 package handler_test
 
 import (
-	"album/internal/handler"
-	"album/internal/images"
-	"album/internal/util"
+	"fotodeck/internal/handler"
+	"fotodeck/internal/images"
+	"fotodeck/internal/util"
 	"net/http/httptest"
 	"os"
 	"testing"

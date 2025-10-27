@@ -1,9 +1,9 @@
 package main
 
 import (
-	"album/internal/application"
-	"album/internal/handler"
-	"album/internal/images"
+	"fotodeck/internal/application"
+	"fotodeck/internal/handler"
+	"fotodeck/internal/images"
 
 	"context"
 	"errors"

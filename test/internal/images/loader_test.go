@@ -1,8 +1,8 @@
 package images_test
 
 import (
-	"album/internal/images"
-	"album/internal/util"
+	"fotodeck/internal/images"
+	"fotodeck/internal/util"
 	"os"
 	"testing"
 
