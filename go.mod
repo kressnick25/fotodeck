@@ -3,7 +3,7 @@ module fotodeck
 go 1.23.4
 
 require (
-	github.com/BurntSushi/toml v1.4.0
+	github.com/BurntSushi/toml v1.5.0
 	github.com/disintegration/imaging v1.6.2
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/samber/lo v1.49.1
